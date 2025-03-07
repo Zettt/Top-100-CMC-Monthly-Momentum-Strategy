@@ -3,6 +3,7 @@ import requests
 import json
 from dotenv import load_dotenv
 import os
+import ccxt
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +11,21 @@ load_dotenv()
 # Constants
 MAX_PAIRS = 25
 TARGET_BALANCE = 200  # Fixed target balance in USDC
+
+# %%
+# Get API credentials from environment variables
+binance_api_key = os.getenv('BINANCE_API_KEY')
+binance_api_secret = os.getenv('BINANCE_API_SECRET')
+
+if not binance_api_key or not binance_api_secret:
+    raise ValueError("Binance API credentials not found in environment variables")
+
+# Initialize Binance exchange
+exchange = ccxt.binance({
+    'apiKey': binance_api_key,
+    'secret': binance_api_secret,
+    'enableRateLimit': True
+})
 
 # %%
 def get_coinmarketcap_top100():
@@ -44,16 +60,12 @@ def get_coinmarketcap_top100():
 
 # %%
 def get_binance_usdt_pairs():
-    url = 'https://api.binance.com/api/v3/exchangeInfo'
-    response = requests.get(url)
-    data = response.json()
+    markets = exchange.load_markets()
     stablecoins = ['USDC', 'USDT', 'BUSD', 'DAI', 'TUSD']
-    usdt_pairs = [pair['symbol'] for pair in data['symbols'] 
-                 if pair['quoteAsset'] == 'USDC' 
-                 and pair['status'] == 'TRADING'
-                 and pair['baseAsset'] not in stablecoins]
-    # print(f'USDT Pairs: {usdt_pairs}\n')
-    return usdt_pairs
+    usdc_pairs = [symbol for symbol in markets.keys() 
+                  if symbol.endswith('/USDC') 
+                  and not any(coin in symbol.split('/')[0] for coin in stablecoins)]
+    return [pair.replace('/', '') for pair in usdc_pairs]
 
 # %%
 def find_common_pairs(top100_symbols, usdt_pairs):
@@ -64,27 +76,12 @@ def find_common_pairs(top100_symbols, usdt_pairs):
 
 # %%
 def get_binance_usdc_balance():
-    binance_key = os.getenv('BINANCE_API_KEY')
-    binance_secret = os.getenv('BINANCE_API_SECRET')
-    
-    if not binance_key or not binance_secret:
-        raise ValueError("Binance API credentials not found in environment variables")
-    
-    endpoint = 'https://api.binance.com/api/v3/account'
-    # You'll need to implement proper Binance API authentication here
-    # This is a simplified version
-    headers = {'X-MBX-APIKEY': binance_key}
-    response = requests.get(endpoint, headers=headers)
-    data = response.json()
-    
-    # Find USDC balance
-    usdc_balance = 0
-    for asset in data.get('balances', []):
-        if asset['asset'] == 'USDC':
-            usdc_balance = float(asset['free'])
-            break
-    
-    return usdc_balance
+    try:
+        balance = exchange.fetch_balance()
+        return float(balance.get('USDC', {}).get('free', 0))
+    except Exception as e:
+        print(f"Error fetching balance: {e}")
+        return 0
 
 # %%
 top100_symbols = get_coinmarketcap_top100()
@@ -92,7 +89,7 @@ usdt_pairs = get_binance_usdt_pairs()
 common_pairs = find_common_pairs(top100_symbols, usdt_pairs)
 
 print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDT pairs): \n {common_pairs}")
-print(f"Number of pairs selected: {len(common_pairs)}")
+print(f"Number of pairs selected: {len(common_pairs)}\n")
 
 # Get actual balance and compare with target
 actual_balance = get_binance_usdc_balance()
@@ -102,6 +99,6 @@ if capital < TARGET_BALANCE:
     print(f"Warning: Available balance (${actual_balance:.2f}) is less than target balance (${TARGET_BALANCE:.2f})")
 
 capital_per_pair = capital / len(common_pairs)
-print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs")
+print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
 
 
