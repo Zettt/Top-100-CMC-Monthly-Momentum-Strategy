@@ -101,4 +101,139 @@ if capital < TARGET_BALANCE:
 capital_per_pair = capital / len(common_pairs)
 print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
 
+# Calculate portfolio value
+def get_portfolio_value(exchange, common_pairs):
+    balance = exchange.fetch_balance()
+    usd_balances = {}
+    
+    for pair in common_pairs:
+        base_currency = pair[:-4]
+        amount = float(balance['total'].get(base_currency, 0))
+        
+        if amount > 0:
+            try:
+                ticker = exchange.fetch_ticker(pair)
+                price = ticker['last']
+                usd_value = amount * price
+                usd_balances[base_currency] = {
+                    'amount': amount,
+                    'usd_value': usd_value
+                }
+            except Exception as e:
+                print(f"Could not fetch price for {pair}: {e}")
+
+    # Print portfolio
+    for currency, data in usd_balances.items():
+        print(f"{currency}: {data['amount']:.8f} coins = ${data['usd_value']:.2f}")
+
+    total_usd_value = sum(data['usd_value'] for data in usd_balances.values())
+    print(f"\nTotal portfolio value: ${total_usd_value:.2f}")
+    return total_usd_value
+
+def find_coins_to_sell(exchange, common_pairs):
+    balance = exchange.fetch_balance()
+    coins_to_sell = []
+    
+    for currency in balance['total'].keys():
+        if currency == 'USDC' or float(balance['total'][currency]) == 0:
+            continue
+        
+        pair = f"{currency}USDC"
+        if pair not in common_pairs:
+            try:
+                amount = float(balance['total'][currency])
+                ticker = exchange.fetch_ticker(pair)
+                usd_value = amount * ticker['last']
+                
+                if usd_value >= 0.5:
+                    coins_to_sell.append(currency)
+                else:
+                    print(f"Skipping {currency} (value: ${usd_value:.2f} < $0.5)")
+            except Exception as e:
+                print(f"Error checking {pair}: {str(e)}")
+    
+    return coins_to_sell
+
+def execute_sells(exchange, coins_to_sell):
+    balance = exchange.fetch_balance()
+    for currency in coins_to_sell:
+        try:
+            pair = f"{currency}USDC"
+            amount = float(balance['total'][currency])
+            
+            order = exchange.create_market_sell_order(
+                symbol=pair,
+                amount=amount,
+                params={'type': 'MARKET'}
+            )
+            
+            print(f"Sold {amount} {currency} at market price")
+            
+        except Exception as e:
+            print(f"Error selling {currency}: {str(e)}")
+        
+        exchange.sleep(1000)  # Rate limit compliance
+
+def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
+    for pair in common_pairs:
+        base_currency = pair[:-4]
+        
+        try:
+            balance = exchange.fetch_balance()
+            current_amount = float(balance['total'].get(base_currency, 0))
+            ticker = exchange.fetch_ticker(pair)
+            current_price = ticker['last']
+            
+            market = exchange.markets[pair]
+            amount_precision = market['precision']['amount']
+            
+            current_value = current_amount * current_price
+            value_difference = capital_per_pair - current_value
+            
+            if abs(value_difference) >= 1:
+                if value_difference > 0:  # Buy
+                    amount_to_buy = round(value_difference / current_price, amount_precision)
+                    
+                    if amount_to_buy >= market['limits']['amount']['min']:
+                        order = exchange.create_market_buy_order(
+                            symbol=pair,
+                            amount=amount_to_buy,
+                            params={'type': 'MARKET'}
+                        )
+                        print(f"Bought {amount_to_buy:.8f} {base_currency} for ${value_difference:.2f}")
+                    else:
+                        print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum")
+                else:  # Sell
+                    amount_to_sell = round(abs(value_difference) / current_price, amount_precision)
+                    
+                    if amount_to_sell >= market['limits']['amount']['min']:
+                        order = exchange.create_market_sell_order(
+                            symbol=pair,
+                            amount=amount_to_sell,
+                            params={'type': 'MARKET'}
+                        )
+                        print(f"Sold {amount_to_sell:.8f} {base_currency} for ${abs(value_difference):.2f}")
+                    else:
+                        print(f"Skip selling {pair}: Amount {amount_to_sell} below minimum")
+            
+            exchange.sleep(1000)
+            
+        except Exception as e:
+            print(f"Error balancing {pair}: {str(e)}")
+            continue
+
+# Execute the portfolio management
+if __name__ == "__main__":
+    # Get current portfolio value
+    total_value = get_portfolio_value(exchange, common_pairs)
+    
+    # Find and sell non-target coins
+    coins_to_sell = find_coins_to_sell(exchange, common_pairs)
+    print(f"Coins to sell: {coins_to_sell}")
+    execute_sells(exchange, coins_to_sell)
+    
+    # Rebalance portfolio
+    print("\nRebalancing portfolio...")
+    rebalance_portfolio(exchange, common_pairs, capital_per_pair)
+
 
