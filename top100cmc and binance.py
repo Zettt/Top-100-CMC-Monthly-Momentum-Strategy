@@ -11,6 +11,7 @@ load_dotenv()
 # Constants
 MAX_PAIRS = 25
 TARGET_BALANCE = 200  # Fixed target balance in USDC
+TRADING_ENABLED = True  # Set to True to enable real trading
 
 # %%
 # Get API credentials from environment variables
@@ -76,6 +77,9 @@ def find_common_pairs(top100_symbols, usdt_pairs):
 
 # %%
 def get_binance_usdc_balance():
+    if not TRADING_ENABLED:
+        return TARGET_BALANCE
+        
     try:
         balance = exchange.fetch_balance()
         return float(balance.get('USDC', {}).get('free', 0))
@@ -95,8 +99,7 @@ print(f"Number of pairs selected: {len(common_pairs)}\n")
 actual_balance = get_binance_usdc_balance()
 capital = min(TARGET_BALANCE, actual_balance)
 
-if capital < TARGET_BALANCE:
-    print(f"Warning: Available balance (${actual_balance:.2f}) is less than target balance (${TARGET_BALANCE:.2f})")
+print (f"Account balance: ${actual_balance:.2f}")
 
 capital_per_pair = capital / len(common_pairs)
 print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
@@ -161,13 +164,14 @@ def execute_sells(exchange, coins_to_sell):
             pair = f"{currency}USDC"
             amount = float(balance['total'][currency])
             
-            order = exchange.create_market_sell_order(
-                symbol=pair,
-                amount=amount,
-                params={'type': 'MARKET'}
-            )
+            if TRADING_ENABLED:
+                order = exchange.create_market_sell_order(
+                    symbol=pair,
+                    amount=amount,
+                    params={'type': 'MARKET'}
+                )
             
-            print(f"Sold {amount} {currency} at market price")
+            print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Sold {amount} {currency} at market price")
             
         except Exception as e:
             print(f"Error selling {currency}: {str(e)}")
@@ -195,24 +199,26 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
                     amount_to_buy = round(value_difference / current_price, amount_precision)
                     
                     if amount_to_buy >= market['limits']['amount']['min']:
-                        order = exchange.create_market_buy_order(
-                            symbol=pair,
-                            amount=amount_to_buy,
-                            params={'type': 'MARKET'}
-                        )
-                        print(f"Bought {amount_to_buy:.8f} {base_currency} for ${value_difference:.2f}")
+                        if TRADING_ENABLED:
+                            order = exchange.create_market_buy_order(
+                                symbol=pair,
+                                amount=amount_to_buy,
+                                params={'type': 'MARKET'}
+                            )
+                        print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Bought {amount_to_buy:.8f} {base_currency} for ${value_difference:.2f}")
                     else:
                         print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum")
                 else:  # Sell
                     amount_to_sell = round(abs(value_difference) / current_price, amount_precision)
                     
                     if amount_to_sell >= market['limits']['amount']['min']:
-                        order = exchange.create_market_sell_order(
-                            symbol=pair,
-                            amount=amount_to_sell,
-                            params={'type': 'MARKET'}
-                        )
-                        print(f"Sold {amount_to_sell:.8f} {base_currency} for ${abs(value_difference):.2f}")
+                        if TRADING_ENABLED:
+                            order = exchange.create_market_sell_order(
+                                symbol=pair,
+                                amount=amount_to_sell,
+                                params={'type': 'MARKET'}
+                            )
+                        print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Sold {amount_to_sell:.8f} {base_currency} for ${abs(value_difference):.2f}")
                     else:
                         print(f"Skip selling {pair}: Amount {amount_to_sell} below minimum")
             
