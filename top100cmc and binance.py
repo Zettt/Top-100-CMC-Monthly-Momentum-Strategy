@@ -12,6 +12,7 @@ load_dotenv()
 MAX_PAIRS = 25
 TARGET_BALANCE = 200  # Fixed target balance in USDC
 TRADING_ENABLED = True  # Set to True to enable real trading
+DEBUG = False  # Set to True to enable debug prints
 
 # %%
 # Get API credentials from environment variables
@@ -60,7 +61,7 @@ def get_coinmarketcap_top100():
     return top100_symbols
 
 # %%
-def get_binance_usdt_pairs():
+def get_binance_usdc_pairs():
     markets = exchange.load_markets()
     stablecoins = ['USDC', 'USDT', 'BUSD', 'DAI', 'TUSD']
     usdc_pairs = [symbol for symbol in markets.keys() 
@@ -81,15 +82,40 @@ def get_account_balance():
         return TARGET_BALANCE
         
     try:
+        total_usd = 0
         balance = exchange.fetch_balance()
-        return float(balance.get('USDC', {}).get('free', 0))
+        if DEBUG: print(f"Debug - Raw balance: {balance['total']}")
+        stablecoins = ['USDC', 'USDT', 'BUSD', 'DAI', 'TUSD']
+        
+        for currency, details in balance['total'].items():
+            if DEBUG: print(f'Debug - currency: {currency}')
+            amount = float(details)
+            if amount <= 0:
+                continue
+                
+            if currency == 'USDC':
+                total_usd += amount
+                if DEBUG: print(f"Debug - Found USDC: {amount}")
+            elif currency in stablecoins:
+                continue  # Skip other stablecoins
+            else:
+                try:
+                    ticker = exchange.fetch_ticker(f"{currency}/USDC")
+                    usd_value = amount * ticker['last']
+                    if usd_value >= 0.5:  # Ignore small balances
+                        total_usd += usd_value
+                        if DEBUG: print(f"Debug - Added {currency}: ${usd_value}")
+                except Exception as e:
+                    print(f"Error pricing {currency}: {e}")
+        
+        return total_usd
     except Exception as e:
         print(f"Error fetching balance: {e}")
         return 0
 
 # %%
 top100_symbols = get_coinmarketcap_top100()
-usdt_pairs = get_binance_usdt_pairs()
+usdt_pairs = get_binance_usdc_pairs()
 common_pairs = find_common_pairs(top100_symbols, usdt_pairs)
 
 print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDT pairs): \n {common_pairs}")
@@ -97,7 +123,7 @@ print(f"Number of pairs selected: {len(common_pairs)}\n")
 
 # Get actual balance and compare with target
 account_balance = get_account_balance()
-capital = TARGET_BALANCE if TRADING_ENABLED else account_balance
+capital = account_balance if TRADING_ENABLED else TARGET_BALANCE
 
 print (f"Account balance: ${account_balance:.2f}\n")
 
