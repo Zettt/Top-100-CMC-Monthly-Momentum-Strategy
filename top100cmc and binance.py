@@ -76,7 +76,7 @@ def find_common_pairs(top100_symbols, usdt_pairs):
     return list(sorted(common_pairs))[:MAX_PAIRS]
 
 # %%
-def get_binance_usdc_balance():
+def get_account_balance():
     if not TRADING_ENABLED:
         return TARGET_BALANCE
         
@@ -96,10 +96,10 @@ print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which a
 print(f"Number of pairs selected: {len(common_pairs)}\n")
 
 # Get actual balance and compare with target
-actual_balance = get_binance_usdc_balance()
-capital = min(TARGET_BALANCE, actual_balance)
+account_balance = get_account_balance()
+capital = TARGET_BALANCE if TRADING_ENABLED else account_balance
 
-print (f"Account balance: ${actual_balance:.2f}")
+print (f"Account balance: ${account_balance:.2f}\n")
 
 capital_per_pair = capital / len(common_pairs)
 print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
