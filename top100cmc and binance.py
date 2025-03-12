@@ -70,11 +70,14 @@ def get_binance_usdc_pairs():
     return [pair.replace('/', '') for pair in usdc_pairs]
 
 # %%
-def find_common_pairs(top100_symbols, usdt_pairs):
-    common_pairs = set(top100_symbols) & set(usdt_pairs)
-    # Convert to list and take only the first MAX_PAIRS pairs
-    # Since common_pairs is a set, we sort it to ensure consistent results
-    return list(sorted(common_pairs))[:MAX_PAIRS]
+def find_common_pairs(top100_symbols, usdc_pairs):
+    common_pairs = []
+    for symbol in top100_symbols:
+        if symbol in usdc_pairs:
+            common_pairs.append(symbol)
+            if len(common_pairs) >= MAX_PAIRS:
+                break
+    return common_pairs
 
 # %%
 def get_account_balance():
