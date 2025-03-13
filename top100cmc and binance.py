@@ -10,9 +10,8 @@ load_dotenv()
 
 # Constants
 MAX_PAIRS = 25
-TARGET_BALANCE = 200  # Fixed target balance in USDC
 TRADING_ENABLED = False  # Set to True to enable real trading
-DEBUG = False  # Set to True to enable debug prints
+TARGET_BALANCE = 200  # Target balance if trading is disabled
 
 # %%
 # Get API credentials from environment variables
@@ -87,18 +86,15 @@ def get_account_balance():
     try:
         total_usd = 0
         balance = exchange.fetch_balance()
-        if DEBUG: print(f"Debug - Raw balance: {balance['total']}")
         stablecoins = ['USDC', 'USDT', 'BUSD', 'DAI', 'TUSD']
         
         for currency, details in balance['total'].items():
-            if DEBUG: print(f'Debug - currency: {currency}')
             amount = float(details)
             if amount <= 0:
                 continue
                 
             if currency == 'USDC':
                 total_usd += amount
-                if DEBUG: print(f"Debug - Found USDC: {amount}")
             elif currency in stablecoins:
                 continue  # Skip other stablecoins
             else:
@@ -107,7 +103,6 @@ def get_account_balance():
                     usd_value = amount * ticker['last']
                     if usd_value >= 0.5:  # Ignore small balances
                         total_usd += usd_value
-                        if DEBUG: print(f"Debug - Added {currency}: ${usd_value}")
                 except Exception as e:
                     print(f"Error pricing {currency}: {e}")
         
