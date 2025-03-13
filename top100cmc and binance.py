@@ -11,7 +11,7 @@ load_dotenv()
 # Constants
 MAX_PAIRS = 25
 TARGET_BALANCE = 200  # Fixed target balance in USDC
-TRADING_ENABLED = True  # Set to True to enable real trading
+TRADING_ENABLED = False  # Set to True to enable real trading
 DEBUG = False  # Set to True to enable debug prints
 
 # %%
@@ -170,26 +170,50 @@ def find_coins_to_sell(exchange, common_pairs, capital_per_pair):
     
     return coins_to_sell
 
-def execute_sells(exchange, coins_to_sell):
+def execute_sells(exchange, coins_to_sell, capital_per_pair):
     balance = exchange.fetch_balance()
+
     for currency in coins_to_sell:
         try:
-            pair = f"{currency}USDC"
-            amount = float(balance['total'][currency])
+            pair = f"{currency}/USDC"
+            if pair not in exchange.markets:
+                print(f"Skipping {currency}: No USDC market")
+                continue
+                
+            # Get current price and available balance
+            ticker = exchange.fetch_ticker(pair)
+            current_price = ticker['last']
+            free_amount = float(balance['free'].get(currency, 0))
+            current_value = free_amount * current_price
             
-            if TRADING_ENABLED:
-                order = exchange.create_market_sell_order(
+            if current_value <= capital_per_pair:
+                print(f"Skipping {currency}: Value ${current_value:.2f} <= ${capital_per_pair:.2f}")
+                continue
+                
+            # Calculate amount to sell
+            excess_value = current_value - capital_per_pair
+            amount_to_sell = min(free_amount, excess_value / current_price)
+            
+            if TRADING_ENABLED and amount_to_sell > 0:
+                # Check market minimums
+                market = exchange.market(pair)
+                if amount_to_sell < market['limits']['amount']['min']:
+                    print(f"Skipping {currency}: Amount {amount_to_sell} below minimum")
+                    continue
+                    
+                # Execute sell
+                exchange.create_market_sell_order(
                     symbol=pair,
-                    amount=amount,
+                    amount=round(amount_to_sell, market['precision']['amount']),
                     params={'type': 'MARKET'}
                 )
             
-            print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Sold {amount} {currency} at market price")
+            print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Sold {amount_to_sell:.8f} {currency} (${excess_value:.2f} excess)")
             
         except Exception as e:
             print(f"Error selling {currency}: {str(e)}")
-        
-        exchange.sleep(1000)  # Rate limit compliance
+        finally:
+            exchange.sleep(1000)  # Rate limit compliance
 
 def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
     for pair in common_pairs:
@@ -263,9 +287,9 @@ if __name__ == "__main__":
     total_value = get_portfolio_value(exchange, common_pairs)
     
     # Find and sell non-target coins
-    coins_to_sell = find_coins_to_sell(exchange, common_pairs)
+    coins_to_sell = find_coins_to_sell(exchange, common_pairs, capital_per_pair)
     print(f"Coins to sell: {coins_to_sell}")
-    execute_sells(exchange, coins_to_sell)
+    execute_sells(exchange, coins_to_sell) if TRADING_ENABLED else print("Trading disabled, skipping sells.")
 
     # Recalculate capital post-sale
     updated_balance = get_account_balance()
