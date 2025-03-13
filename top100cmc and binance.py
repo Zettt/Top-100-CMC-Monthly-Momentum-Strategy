@@ -254,10 +254,9 @@ if __name__ == "__main__":
     # Get actual balance and compare with target
     account_balance = get_account_balance()
     capital = account_balance if TRADING_ENABLED else TARGET_BALANCE
+    capital_per_pair = capital / len(common_pairs)
 
     print(f"Account balance: ${account_balance:.2f}\n")
-
-    capital_per_pair = capital / len(common_pairs)
     print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
 
     # Get current portfolio value
@@ -267,9 +266,12 @@ if __name__ == "__main__":
     coins_to_sell = find_coins_to_sell(exchange, common_pairs)
     print(f"Coins to sell: {coins_to_sell}")
     execute_sells(exchange, coins_to_sell)
+
+    # Recalculate capital post-sale
+    updated_balance = get_account_balance()
+    capital = updated_balance if TRADING_ENABLED else TARGET_BALANCE
+    capital_per_pair = capital / len(common_pairs)
     
     # Rebalance portfolio
     print("\nRebalancing portfolio...")
     rebalance_portfolio(exchange, common_pairs, capital_per_pair)
-
-
