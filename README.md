@@ -1,4 +1,4 @@
-# Top 100 CMC and Binance Analyzer
+# Top 100 CoinMarketCap Monthly Momentum Strategy
 
 A Python-based tool that analyzes cryptocurrency data from CoinMarketCap (CMC) and Binance to identify trading opportunities and market trends.
 
