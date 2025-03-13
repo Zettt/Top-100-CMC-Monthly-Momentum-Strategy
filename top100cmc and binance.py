@@ -117,22 +117,6 @@ def get_account_balance():
         return 0
 
 # %%
-top100_symbols = get_coinmarketcap_top100()
-usdt_pairs = get_binance_usdc_pairs()
-common_pairs = find_common_pairs(top100_symbols, usdt_pairs)
-
-print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDT pairs): \n {common_pairs}")
-print(f"Number of pairs selected: {len(common_pairs)}\n")
-
-# Get actual balance and compare with target
-account_balance = get_account_balance()
-capital = account_balance if TRADING_ENABLED else TARGET_BALANCE
-
-print (f"Account balance: ${account_balance:.2f}\n")
-
-capital_per_pair = capital / len(common_pairs)
-print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
-
 # Calculate portfolio value
 def get_portfolio_value(exchange, common_pairs):
     balance = exchange.fetch_balance()
@@ -259,6 +243,23 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
 
 # Execute the portfolio management
 if __name__ == "__main__":
+    # Initialize top-level variables
+    top100_symbols = get_coinmarketcap_top100()
+    usdt_pairs = get_binance_usdc_pairs()
+    common_pairs = find_common_pairs(top100_symbols, usdt_pairs)
+
+    print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDT pairs): \n {common_pairs}")
+    print(f"Number of pairs selected: {len(common_pairs)}\n")
+
+    # Get actual balance and compare with target
+    account_balance = get_account_balance()
+    capital = account_balance if TRADING_ENABLED else TARGET_BALANCE
+
+    print(f"Account balance: ${account_balance:.2f}\n")
+
+    capital_per_pair = capital / len(common_pairs)
+    print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
+
     # Get current portfolio value
     total_value = get_portfolio_value(exchange, common_pairs)
     
