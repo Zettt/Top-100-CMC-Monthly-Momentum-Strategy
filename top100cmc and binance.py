@@ -220,47 +220,62 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
         base_currency = pair[:-4]
         
         try:
+            # Fetch once per pair to avoid stale data
             balance = exchange.fetch_balance()
-            current_amount = float(balance['total'].get(base_currency, 0))
             ticker = exchange.fetch_ticker(pair)
             current_price = ticker['last']
-            
             market = exchange.markets[pair]
-            amount_precision = market['precision']['amount']
-            
+
+            # Calculate current position
+            current_amount = float(balance['total'].get(base_currency, 0))
             current_value = current_amount * current_price
-            value_difference = capital_per_pair - current_value
-            
-            if abs(value_difference) >= 1:
-                if value_difference > 0:  # Buy
-                    amount_to_buy = round(value_difference / current_price, amount_precision)
-                    
-                    if amount_to_buy >= market['limits']['amount']['min']:
-                        if TRADING_ENABLED:
-                            order = exchange.create_market_buy_order(
-                                symbol=pair,
-                                amount=amount_to_buy,
-                                params={'type': 'MARKET'}
-                            )
-                        print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Bought {amount_to_buy:.8f} {base_currency} for ${value_difference:.2f}")
-                    else:
-                        print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum")
-                else:  # Sell
-                    amount_to_sell = round(abs(value_difference) / current_price, amount_precision)
-                    
-                    if amount_to_sell >= market['limits']['amount']['min']:
-                        if TRADING_ENABLED:
-                            order = exchange.create_market_sell_order(
-                                symbol=pair,
-                                amount=amount_to_sell,
-                                params={'type': 'MARKET'}
-                            )
-                        print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Sold {amount_to_sell:.8f} {base_currency} for ${abs(value_difference):.2f}")
-                    else:
-                        print(f"Skip selling {pair}: Amount {amount_to_sell} below minimum")
-            
-            exchange.sleep(1000)
-            
+            value_difference = capital_per_pair - current_price * current_amount
+
+            # Check if rebalancing is needed (add 1% buffer to avoid micro-adjustments)
+            if abs(value_difference) < max(1, capital_per_pair * 0.01):
+                continue  # Skip small differences
+
+            # Handle buy/sell logic
+            if value_difference > 0:  # Buy
+                # Check available USDC balance
+                usdc_balance = float(balance['total'].get('USDC', 0))
+                if TRADING_ENABLED and (value_difference > usdc_balance):
+                    print(f"Skip buying {pair}: Insufficient USDC (Needed: ${value_difference:.2f}, Available: ${usdc_balance:.2f})")
+                    continue
+
+                amount_to_buy = round(value_difference / current_price, market['precision']['amount'])
+                
+                if amount_to_buy >= market['limits']['amount']['min']:
+                    if TRADING_ENABLED:
+                        # Verify order success
+                        order = exchange.create_market_buy_order(
+                            symbol=pair,
+                            amount=amount_to_buy
+                        )
+                        # Check if order was filled
+                        if order['status'] != 'closed':
+                            print(f"Warning: Buy order for {pair} not fully filled")
+                    print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Bought {amount_to_buy:.8f} {base_currency} (Target: ${capital_per_pair:.2f}, Actual: ${amount_to_buy * current_price:.2f})")
+                else:
+                    print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum")
+
+            else:  # Sell
+                amount_to_sell = round(abs(value_difference) / current_price, market['precision']['amount'])
+                
+                if amount_to_sell >= market['limits']['amount']['min']:
+                    if TRADING_ENABLED:
+                        order = exchange.create_market_sell_order(
+                            symbol=pair,
+                            amount=amount_to_sell
+                        )
+                        if order['status'] != 'closed':
+                            print(f"Warning: Sell order for {pair} not fully filled")
+                    print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Sold {amount_to_sell:.8f} {base_currency} (Target: ${capital_per_pair:.2f}, Actual: ${amount_to_sell * current_price:.2f})")
+                else:
+                    print(f"Skip selling {pair}: Amount {amount_to_sell} below minimum")
+
+            exchange.sleep(1000)  # Rate limit
+
         except Exception as e:
             print(f"Error balancing {pair}: {str(e)}")
             continue
