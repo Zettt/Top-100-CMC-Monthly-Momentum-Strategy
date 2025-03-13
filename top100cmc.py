@@ -9,7 +9,7 @@ import ccxt
 load_dotenv()
 
 # Constants
-MAX_PAIRS = 25
+MAX_PAIRS = 100
 TRADING_ENABLED = False  # Set to True to enable real trading
 TARGET_BALANCE = 200  # Target balance if trading is disabled
 

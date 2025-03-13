@@ -53,7 +53,7 @@ BINANCE_SECRET_KEY=your_binance_secret_key
 
 In `top100cmc.py`:
 ```python
-MAX_PAIRS = 25
+MAX_PAIRS = 25 # Trade the top 25 coins instead of top 100. Better for smaller portfolios.
 TRADING_ENABLED = False  # Set to True to enable real trading
 TARGET_BALANCE = 200  # Fixed target balance in USDC
 DEBUG = False  # Set to True to enable debug prints
