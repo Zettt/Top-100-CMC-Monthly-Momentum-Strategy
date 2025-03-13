@@ -146,25 +146,25 @@ def get_portfolio_value(exchange, common_pairs):
     print(f"\nTotal portfolio value: ${total_usd_value:.2f}")
     return total_usd_value
 
-def find_coins_to_sell(exchange, common_pairs):
+def find_coins_to_sell(exchange, common_pairs, capital_per_pair):
     balance = exchange.fetch_balance()
     coins_to_sell = []
     
-    for currency in balance['total'].keys():
-        if currency == 'USDC' or float(balance['total'][currency]) == 0:
+    for currency in balance['free'].keys():
+        if currency == 'USDC' or float(balance['free'][currency]) == 0:
             continue
         
-        pair = f"{currency}USDC"
-        if pair not in common_pairs:
+        pair = f"{currency}/USDC"
+        if pair not in common_pairs and pair in exchange.markets:
             try:
-                amount = float(balance['total'][currency])
+                amount = float(balance['free'][currency])
                 ticker = exchange.fetch_ticker(pair)
                 usd_value = amount * ticker['last']
                 
-                if usd_value >= 0.5:
+                if usd_value >= capital_per_pair: # and usd_value >= 0.5 to filter out small coins
                     coins_to_sell.append(currency)
                 else:
-                    print(f"Skipping {currency} (value: ${usd_value:.2f} < $0.5)")
+                    print(f"Skipping {currency} (value: ${usd_value:.2f} < ${capital_per_pair:.2f})")
             except Exception as e:
                 print(f"Error checking {pair}: {str(e)}")
     
