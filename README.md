@@ -6,10 +6,18 @@ The idea is based on a *monthly* momentum strategy where we would buy the best p
 
 ## Overview
 
-This project fetches and compares data from both CoinMarketCap and Binance to:
-- Track the top 100 cryptocurrencies by market cap
-- Analyze price discrepancies between exchanges
-- Monitor market movements and trading volumes
+This project:
+
+- Fetches the top 100 CMC coins.
+- It then checks those coins against the available markets on Binance.
+- A list of `common_pais` is produced. These are the coins that we want to trade.
+- The currently available coins in the Spot account is being checked.
+- The value of each coin is checked, and the total portfolio value is calculated.
+- The program creates `capital_per_pair`. This is created by the amount of coins to trade (set via `MAX_PAIRS`), and the total account value.
+- Then the portfolio is being equally weighed.
+- Each coin that exceeds its `capital_per_pair` is being sold to the necessary amount. Coins that lost value are being bought to reach `capital_per_pair`.
+- Each coin that is not in the list anymore, is being sold entirely.
+- New coins are being bought up to `capital_per_pair`.
 
 ## Features
 
