@@ -51,7 +51,10 @@ BINANCE_API_KEY=your_binance_api_key
 BINANCE_SECRET_KEY=your_binance_secret_key
 ```
 
+In `top100cmc.py`:
+```python
 MAX_PAIRS = 25
 TRADING_ENABLED = False  # Set to True to enable real trading
 TARGET_BALANCE = 200  # Fixed target balance in USDC
 DEBUG = False  # Set to True to enable debug prints
+```
