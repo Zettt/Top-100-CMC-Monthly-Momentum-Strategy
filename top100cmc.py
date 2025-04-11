@@ -9,8 +9,8 @@ import ccxt
 load_dotenv()
 
 # Constants
-MAX_PAIRS = 100
-TRADING_ENABLED = False  # Set to True to enable real trading
+MAX_PAIRS = 25
+TRADING_ENABLED = True  # Set to True to enable real trading
 TARGET_BALANCE = 200  # Target balance if trading is disabled
 
 # %%
@@ -299,7 +299,7 @@ if __name__ == "__main__":
     # Find and sell non-target coins
     coins_to_sell = find_coins_to_sell(exchange, common_pairs, capital_per_pair)
     print(f"Coins to sell: {coins_to_sell}")
-    execute_sells(exchange, coins_to_sell) if TRADING_ENABLED else print("Trading disabled, skipping sells.")
+    execute_sells(exchange, coins_to_sell, capital_per_pair) if TRADING_ENABLED else print("Trading disabled, skipping sells.")
 
     # Recalculate capital post-sale
     updated_balance = get_account_balance()
