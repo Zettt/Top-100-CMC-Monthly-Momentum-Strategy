@@ -270,7 +270,7 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
                             print(f"Warning: Buy order for {pair} not fully filled")
                     print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Bought {amount_to_buy:.8f} {base_currency} (Target: ${capital_per_pair:.2f}, Actual: ${amount_to_buy * current_price:.2f})")
                 else:
-                    print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum {min_amount} (needs {min_amount - amount_to_buy} more)")
+                    print(f"Skip buying {pair}: Amount {amount_to_buy:.5f} below minimum {market['limits']['amount']['min']:.5f} (needs {(market['limits']['amount']['min'] - amount_to_buy):.5f} more)")
 
             else:  # Sell
                 amount_to_sell = round(abs(value_difference) / current_price, int(market['precision']['amount']))
@@ -312,10 +312,12 @@ if __name__ == "__main__":
     account_balance = get_account_balance()
     capital = account_balance if TRADING_ENABLED else TARGET_BALANCE
     capital_per_pair = capital / len(common_pairs)
-
-    print(f"Account balance: ${account_balance:.2f}\n")
+    
     print(f"With ${capital:.2f} total capital, you can spend ${capital_per_pair:.2f} on each of the {len(common_pairs)} pairs\n")
 
+    if capital_per_pair < 10:
+        print(f"WARNING: Available trading capital per coin (${capital_per_pair:.2f}) is below $10 minimum - purchases may fail")
+    
     # Get current portfolio value
     total_value = get_portfolio_value(exchange, common_pairs)
     
