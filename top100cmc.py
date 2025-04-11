@@ -164,10 +164,8 @@ def find_coins_to_sell(exchange, common_pairs, capital_per_pair):
                     continue
                 usd_value = amount * ticker['last']
                 
-                if usd_value >= capital_per_pair: # and usd_value >= 0.5 to filter out small coins
-                    coins_to_sell.append(currency)
-                else:
-                    print(f"Skipping {currency} (value: ${usd_value:.2f} < ${capital_per_pair:.2f})")
+                # Sell all non-common pairs that meet exchange minimums
+                coins_to_sell.append(currency)
             except Exception as e:
                 print(f"Error checking {pair}: {str(e)}")
     
@@ -192,13 +190,11 @@ def execute_sells(exchange, coins_to_sell, capital_per_pair):
             free_amount = float(balance['free'].get(currency, 0))
             current_value = free_amount * current_price
             
-            if current_value <= capital_per_pair:
-                print(f"Skipping {currency}: Value ${current_value:.2f} <= ${capital_per_pair:.2f}")
-                continue
                 
             # Calculate amount to sell
-            excess_value = current_value - capital_per_pair
-            amount_to_sell = min(free_amount, excess_value / current_price)
+            # Sell entire position regardless of capital_per_pair
+            amount_to_sell = free_amount
+            excess_value = current_value
             
             if TRADING_ENABLED and amount_to_sell > 0:
                 # Check market minimums
@@ -222,6 +218,26 @@ def execute_sells(exchange, coins_to_sell, capital_per_pair):
             print(f"Error selling {currency}: {str(e)}")
         finally:
             exchange.sleep(1000)  # Rate limit compliance
+
+def get_dust_assets(exchange):
+    try:
+        response = exchange.sapi_get_asset_query_dust_assets({'toAsset': 'BNB'})
+        return response.get('details', [])
+    except Exception as e:
+        print(f"Error fetching dust assets: {e}")
+        return []
+
+def convert_dust(exchange, assets):
+    try:
+        asset_list = [asset['asset'] for asset in assets]
+        response = exchange.sapi_post_asset_dust({
+            'asset': ','.join(asset_list),
+            'toAsset': 'BNB'
+        })
+        print(f"Converted {len(asset_list)} assets to BNB: {response}")
+    except Exception as e:
+        print(f"Error converting dust: {e}")
+
 
 def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
     for pair in common_pairs:
@@ -306,7 +322,6 @@ if __name__ == "__main__":
         raise ValueError("No common pairs found between CoinMarketCap and Binance")
     
     print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDC pairs): \n {common_pairs}")
-    print(f"Number of pairs selected: {len(common_pairs)}\n")
 
     # Get actual balance and compare with target
     account_balance = get_account_balance()
@@ -325,6 +340,16 @@ if __name__ == "__main__":
     coins_to_sell = find_coins_to_sell(exchange, common_pairs, capital_per_pair)
     print(f"Coins to sell: {coins_to_sell}")
     execute_sells(exchange, coins_to_sell, capital_per_pair) if TRADING_ENABLED else print("Trading disabled, skipping sells.")
+    
+        # Convert dust assets to BNB
+    if TRADING_ENABLED:
+            print("\nChecking for convertible dust assets...")
+            dust_assets = get_dust_assets(exchange)
+            if dust_assets:
+                print(f"Converting dust assets: {[a['asset'] for a in dust_assets]}")
+                convert_dust(exchange, dust_assets)
+            else:
+                print("No convertible dust assets found")
 
     # Recalculate capital post-sale
     updated_balance = get_account_balance()
