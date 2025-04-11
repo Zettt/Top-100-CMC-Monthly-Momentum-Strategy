@@ -203,7 +203,9 @@ def execute_sells(exchange, coins_to_sell, capital_per_pair):
             if TRADING_ENABLED and amount_to_sell > 0:
                 # Check market minimums
                 market = exchange.market(pair)
-                if amount_to_sell < market['limits']['amount']['min']:
+                notional = amount_to_sell * current_price
+                if (amount_to_sell < market['limits']['amount']['min'] or
+                    notional < market['limits']['cost']['min']):
                     print(f"Skipping {currency}: Amount {amount_to_sell} below minimum")
                     continue
                     
@@ -254,7 +256,9 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
 
                 amount_to_buy = round(value_difference / current_price, int(market['precision']['amount']))
                 
-                if amount_to_buy >= market['limits']['amount']['min']:
+                notional = amount_to_buy * current_price
+                if (amount_to_buy >= market['limits']['amount']['min'] and
+                    notional >= market['limits']['cost']['min']):
                     if TRADING_ENABLED:
                         # Verify order success
                         order = exchange.create_market_buy_order(
@@ -266,12 +270,14 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
                             print(f"Warning: Buy order for {pair} not fully filled")
                     print(f"{'[SIMULATION] ' if not TRADING_ENABLED else ''}Bought {amount_to_buy:.8f} {base_currency} (Target: ${capital_per_pair:.2f}, Actual: ${amount_to_buy * current_price:.2f})")
                 else:
-                    print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum")
+                    print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum {min_amount} (needs {min_amount - amount_to_buy} more)")
 
             else:  # Sell
                 amount_to_sell = round(abs(value_difference) / current_price, int(market['precision']['amount']))
                 
-                if amount_to_sell >= market['limits']['amount']['min']:
+                notional = amount_to_sell * current_price
+                if (amount_to_sell >= market['limits']['amount']['min'] and
+                    notional >= market['limits']['cost']['min']):
                     if TRADING_ENABLED:
                         order = exchange.create_market_sell_order(
                             symbol=pair,
