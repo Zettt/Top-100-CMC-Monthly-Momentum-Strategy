@@ -54,7 +54,7 @@ def get_coinmarketcap_top100():
     coins = data['data']
     # Filter out stablecoins and create pairs
     stablecoins = ['USDC', 'USDT', 'BUSD', 'DAI', 'TUSD']
-    top100_symbols = [coin['symbol'] + "USDC" for coin in data['data'] 
+    top100_symbols = [coin['symbol'] + "/USDC" for coin in data['data']
                      if coin['symbol'] not in stablecoins]
     # print(f'Top 100 Symbols: {top100_symbols}\n')
     return top100_symbols
@@ -66,7 +66,7 @@ def get_binance_usdc_pairs():
     usdc_pairs = [symbol for symbol in markets.keys() 
                   if symbol.endswith('/USDC') 
                   and not any(coin in symbol.split('/')[0] for coin in stablecoins)]
-    return [pair.replace('/', '') for pair in usdc_pairs]
+    return usdc_pairs
 
 # %%
 def find_common_pairs(top100_symbols, usdc_pairs):
@@ -100,6 +100,8 @@ def get_account_balance():
             else:
                 try:
                     ticker = exchange.fetch_ticker(f"{currency}/USDC")
+                    if ticker['last'] is None:
+                        continue
                     usd_value = amount * ticker['last']
                     if usd_value >= 0.5:  # Ignore small balances
                         total_usd += usd_value
@@ -118,12 +120,15 @@ def get_portfolio_value(exchange, common_pairs):
     usd_balances = {}
     
     for pair in common_pairs:
-        base_currency = pair[:-4]
+        base_currency = pair.split('/')[0]
         amount = float(balance['total'].get(base_currency, 0))
         
         if amount > 0:
             try:
                 ticker = exchange.fetch_ticker(pair)
+                if ticker['last'] is None:
+                    print(f"Skipping {pair}: No price available")
+                    continue
                 price = ticker['last']
                 usd_value = amount * price
                 usd_balances[base_currency] = {
@@ -154,6 +159,9 @@ def find_coins_to_sell(exchange, common_pairs, capital_per_pair):
             try:
                 amount = float(balance['free'][currency])
                 ticker = exchange.fetch_ticker(pair)
+                if ticker['last'] is None:
+                    print(f"Skipping {currency}: No price available")
+                    continue
                 usd_value = amount * ticker['last']
                 
                 if usd_value >= capital_per_pair: # and usd_value >= 0.5 to filter out small coins
@@ -177,6 +185,9 @@ def execute_sells(exchange, coins_to_sell, capital_per_pair):
                 
             # Get current price and available balance
             ticker = exchange.fetch_ticker(pair)
+            if ticker['last'] is None:
+                print(f"Skipping {currency}: No price available")
+                continue
             current_price = ticker['last']
             free_amount = float(balance['free'].get(currency, 0))
             current_value = free_amount * current_price
@@ -199,7 +210,7 @@ def execute_sells(exchange, coins_to_sell, capital_per_pair):
                 # Execute sell
                 exchange.create_market_sell_order(
                     symbol=pair,
-                    amount=round(amount_to_sell, market['precision']['amount']),
+                    amount=round(amount_to_sell, int(market['precision']['amount'])),
                     params={'type': 'MARKET'}
                 )
             
@@ -212,12 +223,15 @@ def execute_sells(exchange, coins_to_sell, capital_per_pair):
 
 def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
     for pair in common_pairs:
-        base_currency = pair[:-4]
+        base_currency = pair.split('/')[0]
         
         try:
             # Fetch once per pair to avoid stale data
             balance = exchange.fetch_balance()
             ticker = exchange.fetch_ticker(pair)
+            if ticker['last'] is None:
+                print(f"Skipping {pair}: No price available")
+                continue
             current_price = ticker['last']
             market = exchange.markets[pair]
 
@@ -238,7 +252,7 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
                     print(f"Skip buying {pair}: Insufficient USDC (Needed: ${value_difference:.2f}, Available: ${usdc_balance:.2f})")
                     continue
 
-                amount_to_buy = round(value_difference / current_price, market['precision']['amount'])
+                amount_to_buy = round(value_difference / current_price, int(market['precision']['amount']))
                 
                 if amount_to_buy >= market['limits']['amount']['min']:
                     if TRADING_ENABLED:
@@ -255,7 +269,7 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
                     print(f"Skip buying {pair}: Amount {amount_to_buy} below minimum")
 
             else:  # Sell
-                amount_to_sell = round(abs(value_difference) / current_price, market['precision']['amount'])
+                amount_to_sell = round(abs(value_difference) / current_price, int(market['precision']['amount']))
                 
                 if amount_to_sell >= market['limits']['amount']['min']:
                     if TRADING_ENABLED:
@@ -279,10 +293,13 @@ def rebalance_portfolio(exchange, common_pairs, capital_per_pair):
 if __name__ == "__main__":
     # Initialize top-level variables
     top100_symbols = get_coinmarketcap_top100()
-    usdt_pairs = get_binance_usdc_pairs()
-    common_pairs = find_common_pairs(top100_symbols, usdt_pairs)
-
-    print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDT pairs): \n {common_pairs}")
+    usdc_pairs = get_binance_usdc_pairs()
+    common_pairs = find_common_pairs(top100_symbols, usdc_pairs)
+    
+    if not common_pairs:
+        raise ValueError("No common pairs found between CoinMarketCap and Binance")
+    
+    print(f"Top {MAX_PAIRS} cryptocurrencies in the top 100 on CoinMarketCap which are tradeable on Binance (USDC pairs): \n {common_pairs}")
     print(f"Number of pairs selected: {len(common_pairs)}\n")
 
     # Get actual balance and compare with target
