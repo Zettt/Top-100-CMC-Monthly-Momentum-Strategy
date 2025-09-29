@@ -1,0 +1,9 @@
+[project]
+name = "top_100_cmc_and_binance"
+version = "0.2.0"
+requires-python = ">=3.13"
+dependencies = [
+    "ccxt>=4.5.6",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.5",
+]
